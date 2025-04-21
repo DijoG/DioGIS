@@ -1,0 +1,516 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>DioGIS</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <script src="https://js.arcgis.com/4.28/"></script>
+  <link rel="stylesheet" href="https://js.arcgis.com/4.28/esri/themes/light/main.css" />
+  <style>
+    html, body, #mapview {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      width: 100%;
+    }
+    #buttons {
+      position: fixed;
+      top: 0px;
+      left: 0px;
+      z-index: 99;
+      background: rgba(255, 255, 255, 0.3);
+      padding: 5px;
+      border-radius: 5px;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.312);
+      display: flex;
+      justify-content: space-between;
+    }
+    #buttons select {
+      margin-right: 10px;
+      padding: 5px 10px;
+      font-size: 12px;
+    }
+    #refreshBtn, #printBtn {
+      position: absolute;
+      background: rgba(255, 255, 255, 0.3);
+      padding: 5px 10px;
+      border-radius: 5px;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+      cursor: pointer;
+      text-align: center;
+    }
+    #refreshBtn { top: 260px; right: 10px; }
+    #printBtn { top: 310px; right: 10px; }
+
+    #legendContainer {
+      position: absolute;
+      bottom: 20px;
+      left: 20px;
+      z-index: 99;
+      background: rgba(255, 255, 255, 0.3);
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+    }
+
+    /* Updated CSS for legend styling */
+    #legendDiv .esri-legend {
+      background: rgba(255, 255, 255, 0.3) !important; /* Override default background */
+      padding: 5px !important;
+      min-width: auto !important;
+      width: auto !important;
+      max-width: 250px;
+      font-size: 12px; /* General font size within the legend */
+    }
+
+    #legendDiv .esri-legend__layer {
+      margin: 5px 0 !important;
+    }
+
+    #legendDiv .esri-legend__layer-caption {
+      font-size: 14px !important;
+      font-weight: bold !important;
+      white-space: pre-wrap !important; /* For line breaks */
+    }
+
+    #legendDiv .esri-legend__layer {
+      margin: 5px 0 !important;
+    }
+
+    #legendDiv .esri-legend__symbol-label {
+      font-size: 12px !important;
+    }
+
+    /* Target the labels next to the symbols ("Increase", "Decrease") */
+    #legendDiv .esri-legend__symbol-item-label {
+      font-size: 18px !important;
+    }
+
+    #popupPanel {
+      position: absolute;
+      right: 5px;
+      top: 5px;
+      width: 300px;
+      background: white;
+      padding: 0px 10px;
+      border-radius: 4px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+      z-index: 100;
+      display: none;
+    }
+
+    #popupCloseBtn {
+      position: absolute;
+      top: 5px;
+      right: 8px;
+      cursor: pointer;
+      color: #888;
+      font-weight: bold;
+    }
+
+    .back-button {
+      position: fixed;
+      top: 0px;
+      left: 45%;
+      padding: 8px 15px;
+      border: 1px solid rgba(255, 255, 255, 0.3);
+      border-radius: 5px;
+      background-color:  rgba(255, 255, 255, 0.3);
+      cursor: pointer;
+      font-size: 16px;
+      z-index: 1000;
+    }
+
+    .back-button:hover {
+      background-color: rgba(255, 255, 255, 0.3);
+    }
+
+    @media print {
+      body, #mapview {
+        margin: 0;
+        padding: 0;
+        width: 100%;
+        height: 100%;
+      }
+      #buttons, #refreshBtn, #printBtn, #legendContainer, #popupPanel, .layer-controls {
+        display: none;
+      }
+    }
+
+    /* Layer controls styling */
+    .layer-controls {
+      position: absolute;
+      top: 50px; /* Positioned below the buttons panel */
+      left: 10px;
+      z-index: 100;
+      background-color: rgba(255, 255, 255, 0.6);
+      border-radius: 5px;
+      padding: 10px;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .layer-controls label {
+      font-size: 14px;
+      color: #333;
+      display: flex;
+      align-items: center;
+    }
+
+    .layer-controls input[type="checkbox"] {
+      margin-right: 5px;
+    }
+  </style>
+</head>
+<body>
+  <div id="buttons">
+    <select id="grpDropdown"><option value="">Select GRP ID</option></select>
+    <select id="lstservices">
+      <option value="WHITE">White background</option>
+    </select>
+    <label for="grpLayerCheckbox">GRP Layer Visible</label>
+    <input type="checkbox" id="grpLayerCheckbox" checked />
+  </div>
+
+  <div class="layer-controls">
+    <label>
+      <input type="checkbox" id="vcLayerCheckbox" checked> Vegetation Cover
+    </label>
+    <label>
+      <input type="checkbox" id="treeLayerCheckbox" checked> Trees
+    </label>
+    <label>
+      <input type="checkbox" id="lstLayerCheckbox" checked> Land Surface Temperature
+    </label>
+  </div>
+
+  <div id="mapview"></div>
+  <div id="refreshBtn">Refresh</div>
+  <div id="printBtn">Print</div>
+  <div id="legendContainer"><div id="legendDiv"></div></div>
+
+  <div id="popupPanel">
+    <div id="popupCloseBtn">✖</div>
+    <div id="popupContent"></div>
+  </div>
+
+  <script>
+    let mapview, map, geojsonLayer, grpGeojsonLayer, vcGeojsonLayer, treeGeojsonLayer, lstGeojsonLayer;
+
+    require([
+      "esri/Map",
+      "esri/views/MapView",
+      "esri/request",
+      "esri/layers/MapImageLayer",
+      "esri/layers/GeoJSONLayer",
+      "esri/symbols/SimpleFillSymbol",
+      "esri/renderers/SimpleRenderer",
+      "esri/symbols/SimpleMarkerSymbol",
+      "esri/widgets/Legend",
+      "esri/widgets/Print",
+      "esri/widgets/Zoom",
+      "esri/renderers/ClassBreaksRenderer"
+    ], function (
+      Map, MapView, esriRequest, MapImageLayer, GeoJSONLayer, SimpleFillSymbol, SimpleRenderer, SimpleMarkerSymbol, Legend, Print, Zoom, ClassBreaksRenderer
+    ) {
+      const serviceURL = "https://server.arcgisonline.com/arcgis/rest/?f=json";
+      const selectedIndexes = [2, 5, 7];
+
+      const lstservices = document.getElementById("lstservices");
+      const grpDropdown = document.getElementById("grpDropdown");
+      const popupPanel = document.getElementById("popupPanel");
+      const popupContent = document.getElementById("popupContent");
+      const popupCloseBtn = document.getElementById("popupCloseBtn");
+      const grpLayerCheckbox = document.getElementById("grpLayerCheckbox");
+
+      popupCloseBtn.addEventListener("click", () => {
+        popupPanel.style.display = "none";
+      });
+
+      map = new Map({ basemap: null });
+
+      mapview = new MapView({
+        container: "mapview",
+        map: map,
+        center: [46.66302550542527, 24.72617449457473],
+        scale: 580000,
+        background: { color: "white" }
+      });
+
+      mapview.ui.remove("zoom");
+
+      geojsonLayer = new GeoJSONLayer({
+        url: "http://localhost:8080/data/AOI.geojson",
+        title: "AOI",
+        renderer: new SimpleRenderer({
+          symbol: new SimpleFillSymbol({
+            color: [255, 255, 0, 0],
+            outline: { color: [125, 125, 125, 1], width: 1 }
+          })
+        })
+      });
+
+      grpGeojsonLayer = new GeoJSONLayer({
+        url: "http://localhost:8080/geojson/AOI_splitted.geojson",
+        title: "GRP Polygons",
+        renderer: new SimpleRenderer({
+          symbol: new SimpleFillSymbol({
+            color: [0, 0, 255, 0.1],
+            outline: { color: [0, 0, 0, 0.2], width: 1 }
+          })
+        }),
+        popupTemplate: {
+          title: "{id}",
+          fieldInfos: [
+            {
+              fieldName: "VC_decrease",
+              format: { places: 2, digitSeparator: true }
+            },
+            {
+              fieldName: "VC_increase",
+              format: { places: 2, digitSeparator: true }
+            },
+            {
+              fieldName: "AREA",
+              format: { places: 0 }
+            }],
+          content: `
+            <b>ID:</b> {id}<br>
+            <b>Area (m²):</b> {AREA}<br>
+            <b>Decrease (%):</b> {VC_decrease}%<br>
+            <b>Increase (%):</b> {VC_increase}%<br>
+            <b>N tree:</b> {Tree_count}
+            `
+        }
+      });
+
+      vcGeojsonLayer = new GeoJSONLayer({
+        url: "http://localhost:8080/geojson/dummy_binary.geojson",
+        title: "Vegetation Cover",
+        renderer: {
+          type: "unique-value",
+          field: "ndvi02",
+          uniqueValueInfos: [
+            {
+              value: 0,
+              symbol: {
+                type: "simple-fill",
+                color: [255, 0, 0, 0.4],
+                outline: null
+              },
+              label: "Decrease"
+            },
+            {
+              value: 1,
+              symbol: {
+                type: "simple-fill",
+                color: [0, 255, 0, 0.4],
+                outline: null
+              },
+              label: "Increase"
+            }
+          ]
+        }
+      });
+
+      treeGeojsonLayer = new GeoJSONLayer({
+        url: "http://localhost:8080/geojson/dummy_trees.geojson",
+        title: "Trees",
+        renderer: new SimpleRenderer({
+          symbol: new SimpleMarkerSymbol({
+            style: "circle",
+            color: [80, 80, 80, 0.9],
+            size: 2,
+            outline: null
+          })
+        })
+      });
+
+      // Create LST layer with class breaks renderer
+      const minValueLST = 30;
+      const maxValueLST = 71;
+      const numClasses = 5;
+      const classBreaks = [];
+      const colorStops = [
+        "rgba(255, 255, 204, 0.9)",
+        "rgba(255, 237, 160, 0.9)",
+        "rgba(254, 217, 118, 0.9)",
+        "rgba(254, 178, 76, 0.9)",
+        "rgba(240, 59, 32, 0.9)"
+      ];
+
+      for (let i = 0; i < numClasses; i++) {
+        const lowerBound = minValueLST + (i * (maxValueLST - minValueLST) / numClasses);
+        const upperBound = minValueLST + ((i + 1) * (maxValueLST - minValueLST) / numClasses);
+        classBreaks.push({
+          minValue: lowerBound,
+          maxValue: upperBound,
+          symbol: new SimpleFillSymbol({
+            color: colorStops[i],
+            outline: null
+          }),
+          label: `${lowerBound.toFixed(1)} - ${upperBound.toFixed(1)}`
+        });
+      }
+
+      lstGeojsonLayer = new GeoJSONLayer({
+        url: "http://localhost:8080/geojson/dummy_LSTn.geojson",
+        title: null,
+        renderer: {
+          type: "class-breaks",
+          field: "Land Surface Temperature (°C)",
+          classBreakInfos: classBreaks
+        }
+      });
+
+      map.addMany([lstGeojsonLayer, grpGeojsonLayer, treeGeojsonLayer, vcGeojsonLayer, geojsonLayer]);
+
+      // Layer control event listeners
+      document.getElementById("vcLayerCheckbox").addEventListener("change", function() {
+        vcGeojsonLayer.visible = this.checked;
+      });
+
+      document.getElementById("treeLayerCheckbox").addEventListener("change", function() {
+        treeGeojsonLayer.visible = this.checked;
+      });
+
+      document.getElementById("lstLayerCheckbox").addEventListener("change", function() {
+        lstGeojsonLayer.visible = this.checked;
+      });
+
+      function populateGRPDropdown() {
+        grpGeojsonLayer.queryFeatures().then((results) => {
+          grpDropdown.innerHTML = '<option value="">Select GRP ID</option>';
+          results.features.forEach((feature) => {
+            const id = feature.attributes.id;
+            const option = document.createElement("option");
+            option.value = id;
+            option.textContent = id;
+            grpDropdown.appendChild(option);
+          });
+        });
+      }
+
+      grpGeojsonLayer.on("layerview-create", populateGRPDropdown);
+
+      const formatNumber = (value, decimals = 2) => {
+        const num = parseFloat(value);
+        return isNaN(num) ? "0".repeat(decimals ? decimals + 1 : 1) : num.toFixed(decimals);
+      };
+
+      grpDropdown.addEventListener("change", function () {
+        const selectedID = this.value;
+
+        if (selectedID) {
+          const definitionExpression = `id = '${selectedID}'`;
+          grpGeojsonLayer.definitionExpression = definitionExpression;
+
+          grpGeojsonLayer.queryFeatures({
+            where: definitionExpression,
+            returnGeometry: true
+          }).then((results) => {
+            if (results.features.length > 0) {
+              mapview.goTo(results.features[0].geometry.extent.expand(1.5));
+              showPopup(results.features[0].attributes);
+            } else {
+              popupPanel.style.display = "none";
+            }
+          }).catch(function(error) {
+            console.error("Error querying features:", error);
+          });
+        } else {
+          grpGeojsonLayer.definitionExpression = null;
+          popupPanel.style.display = "none";
+        }
+      });
+
+      function showPopup(attrs) {
+        popupContent.innerHTML = `
+          <h3>GRP ID: ${attrs.id || "N/A"}</h3>
+          <p><strong>Area:</strong> ${formatNumber(attrs.AREA, 0)} m²</p>
+          <p><strong>Decrease:</strong> ${formatNumber(attrs.VC_decrease)}%</p>
+          <p><strong>Increase:</strong> ${formatNumber(attrs.VC_increase)}%</p>
+          <p><strong>N tree:</strong> ${attrs.Tree_count || "0"}</p>
+          `;
+        popupPanel.style.display = "block";
+      }
+
+      document.getElementById("printBtn").addEventListener("click", () => window.print());
+
+      document.getElementById("refreshBtn").addEventListener("click", () => {
+        mapview.goTo({ center: [46.66302550542527, 24.72617449457473], scale: 580000 });
+        populateGRPDropdown();
+        popupPanel.style.display = "none";
+        grpGeojsonLayer.definitionExpression = null;
+        grpDropdown.value = "";
+      });
+
+      const zoomWidget = new Zoom({ view: mapview });
+      mapview.ui.add(zoomWidget, "bottom-right");
+
+      const legend = new Legend({
+        view: mapview,
+        container: "legendDiv",
+        layerInfos: [
+          {
+            layer: vcGeojsonLayer,
+            title: "Vegetation Cover"
+          },
+          {
+            layer: treeGeojsonLayer,
+            title: "Trees"
+          },
+          {
+            layer: lstGeojsonLayer,
+            title: null
+          }
+        ]
+      });
+
+      grpLayerCheckbox.addEventListener("change", function () {
+        grpGeojsonLayer.visible = this.checked;
+        if (!this.checked) {
+          grpGeojsonLayer.definitionExpression = null;
+        } else if (grpDropdown.value) {
+          grpDropdown.dispatchEvent(new Event('change'));
+        }
+      });
+
+      esriRequest(serviceURL, { responseType: "json" }).then(response => {
+        const services = response.data.services;
+        selectedIndexes.forEach(i => {
+          if (i < services.length) {
+            const option = document.createElement("option");
+            option.textContent = services[i].name;
+            option.value = services[i].name;
+            lstservices.appendChild(option);
+          }
+        });
+        if (lstservices.options.length > 0) {
+          loadServiceLayer(lstservices.options[0].value);
+        }
+      });
+
+      lstservices.addEventListener("change", function () {
+        loadServiceLayer(this.value);
+      });
+
+      function loadServiceLayer(serviceName) {
+        map.removeAll();
+        if (serviceName === "WHITE") {
+          map.basemap = null;
+          mapview.background = { color: "white" };
+        } else {
+          const layerUrl = `https://server.arcgisonline.com/arcgis/rest/services/${serviceName}/MapServer`;
+          const imageryLayer = new MapImageLayer({ url: layerUrl });
+          map.basemap = {
+            baseLayers: [imageryLayer]
+          };
+        }
+        map.addMany([lstGeojsonLayer, grpGeojsonLayer, treeGeojsonLayer, vcGeojsonLayer, geojsonLayer]);
+        populateGRPDropdown();
+      }
+    });
+  </script>
+</body>
+</html>

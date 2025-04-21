@@ -1,0 +1,484 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>DioGIS ~ Version 1</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <script src="https://js.arcgis.com/4.28/"></script>
+  <link rel="stylesheet" href="https://js.arcgis.com/4.28/esri/themes/light/main.css" />
+  <style>
+    html, body, #mapview {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      width: 100%;
+    }
+    #buttons {
+      position: fixed;
+      top: 0px;
+      left: 0px;
+      z-index: 99;
+      background: rgba(255, 255, 255, 0.3);
+      padding: 5px;
+      border-radius: 5px;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.312);
+      display: flex;
+      justify-content: space-between;
+    }
+    #buttons select {
+      margin-right: 10px;
+      padding: 5px 10px;
+      font-size: 12px;
+    }
+    #refreshBtn, #printBtn {
+      position: absolute;
+      background: rgba(255, 255, 255, 0.3);
+      padding: 5px 10px;
+      border-radius: 5px;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.312);
+      cursor: pointer;
+      text-align: center;
+    }
+    #refreshBtn { top: 260px; right: 10px; }
+    #printBtn { top: 310px; right: 10px; }
+
+    #legendContainer {
+      position: absolute;
+      bottom: 20px;
+      left: 20px;
+      z-index: 99;
+      background: rgba(255, 255, 255, 0.3);
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+    }
+
+    /* Updated CSS for legend styling */
+    #legendDiv .esri-legend {
+      background: rgba(255, 255, 255, 0.3) !important; /* Override default background */
+      padding: 5px !important;
+      min-width: auto !important;
+      width: auto !important;
+      max-width: 250px;
+      font-size: 16px; /* General font size within the legend */
+    }
+
+    #legendDiv .esri-legend__layer {
+      margin: 5px 0 !important;
+    }
+
+    #legendDiv .esri-legend__layer-caption {
+      font-size: 14px !important;
+      font-weight: bold !important;
+      white-space: pre-wrap !important; /* For line breaks */
+    }
+
+    #legendDiv .esri-legend__symbol-label {
+      font-size: 12px !important;
+    }
+
+    /* Target the labels next to the symbols ("Increase", "Decrease") */
+    #legendDiv .esri-legend__symbol-item-label {
+      font-size: 18px !important;
+    }
+
+    .back-button {
+      position: fixed;
+      top: 0px;
+      left: 45%;
+      padding: 8px 15px;
+      border: 1px solid rgba(255, 255, 255, 0.3);
+      border-radius: 5px;
+      background-color: rgba(255, 255, 255, 0.3);
+      cursor: pointer;
+      font-size: 16px;
+      z-index: 1000;
+    }
+
+    .back-button:hover {
+      background-color: rgba(255, 255, 255, 0.3);
+    }
+
+    @media print {
+      body, #mapview {
+        margin: 0;
+        padding: 0;
+        width: 100%;
+        height: 100%;
+      }
+      #buttons, #refreshBtn, #printBtn, #legendContainer {
+        display: none;
+      }
+    }
+
+    /* CSS for continuous legend */
+    .continuous-legend {
+      display: none; /* Hide the continuous legend container */
+      padding: 10px;
+    }
+
+    .gradient-ramp {
+      height: 20px;
+      width: 150px;
+      background: linear-gradient(to right, blue, red); /* Example gradient */
+      border: 1px solid #ccc;
+    }
+
+    .legend-labels {
+      display: flex;
+      justify-content: space-between;
+      font-size: 12px;
+    }
+    .layer-controls {
+      position: absolute;
+      top: 50px;
+      left: 10px;
+      z-index: 100;
+      background-color: rgba(255, 255, 255, 0.6);
+      border-radius: 5px;
+      padding: 10px;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .layer-controls label {
+      font-size: 14px;
+      color: #333;
+    }
+
+    .layer-controls input[type="checkbox"] {
+      margin-right: 5px;
+    }
+
+  </style>
+</head>
+<body>
+  <div id="buttons">
+    <button class="back-button" onclick="window.parent.showMainPage()">Back to Versions</button>
+    <select id="lstservices"></select>
+    <label for="grpLayerCheckbox">GRP Layer Visible</label>
+    <input type="checkbox" id="grpLayerCheckbox" checked />
+  </div>
+  <div class="layer-controls">
+      <label>
+        <input type="checkbox" id="vcLayerCheckbox" checked> Vegetation Cover
+      </label>
+      <label>
+        <input type="checkbox" id="treeLayerCheckbox" checked> Trees
+      </label>
+      <label>
+        <input type="checkbox" id="lstLayerCheckbox" checked> Land Surface Temperature
+      </label>
+  </div>
+  <div id="mapview"></div>
+  <div id="refreshBtn">Refresh</div>
+  <div id="printBtn">Print</div>
+  <div id="legendContainer">
+    <div id="legendDiv"></div>
+    <div id="lstLegend" class="continuous-legend">
+      <div class="gradient-ramp" id="lstGradient"></div>
+      <div class="legend-labels">
+        <span id="minValue"></span>
+        <span id="maxValue"></span>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let mapview, map, geojsonLayer, grpGeojsonLayer, newGeojsonLayer, vcGeojsonLayer, treeGeojsonLayer, lstGeojsonLayer;
+
+    require([
+      "esri/Map",
+      "esri/views/MapView",
+      "esri/request",
+      "esri/layers/MapImageLayer",
+      "esri/layers/GeoJSONLayer",
+      "esri/symbols/SimpleFillSymbol",
+      "esri/renderers/SimpleRenderer",
+      "esri/symbols/SimpleMarkerSymbol",
+      "esri/widgets/Legend",
+      "esri/widgets/Print",
+      "esri/widgets/Zoom",
+      "esri/layers/GraphicsLayer",
+      "esri/renderers/ClassBreaksRenderer" // Import ClassBreaksRenderer
+    ], function (Map, MapView, esriRequest, MapImageLayer, GeoJSONLayer, SimpleFillSymbol, SimpleRenderer, SimpleMarkerSymbol, Legend, Print, Zoom, GraphicsLayer, ClassBreaksRenderer) {
+
+      const serviceURL = "https://server.arcgisonline.com/arcgis/rest/?f=json";
+      const selectedIndexes = [2, 5, 7];
+
+      map = new Map({ basemap: null });
+
+      mapview = new MapView({
+        container: "mapview",
+        map: map,
+        center: [46.66302550542527, 24.72617449457473],
+        scale: 580000,
+        background: {
+          color: "white"
+        }
+      });
+
+      mapview.ui.remove("zoom");
+
+      geojsonLayer = new GeoJSONLayer({
+        url: "http://localhost:8080/geojson/AOI.geojson",
+        title: "AOI",
+        renderer: new SimpleRenderer({
+          symbol: new SimpleFillSymbol({
+            color: [255, 255, 0, 0],
+            outline: { color: [125, 125, 125, 1], width: 1 }
+          })
+        })
+      });
+
+      grpGeojsonLayer = new GeoJSONLayer({
+        url: "http://localhost:8080/geojson/AOI_splitted.geojson",
+        title: "GRP Polygons",
+        renderer: new SimpleRenderer({
+          symbol: new SimpleFillSymbol({
+            color: [0, 0, 255, 0.1],
+            outline: { color: [0, 0, 0, 0.2], width: 1 }
+          })
+        }),
+        popupTemplate: {
+          title: "{id}",
+          fieldInfos: [
+            {
+              fieldName: "VC_decrease",
+              format:
+              {
+                places: 2,
+                digitSeparator: true
+              }
+            },
+            {
+              fieldName: "VC_increase",
+              format:
+              {
+                places: 2,
+                digitSeparator: true
+              }
+            },
+            {
+              fieldName: "AREA",
+              format: {
+                places: 0 }
+            }],
+          content: `
+            <b>ID:</b> {id}<br>
+            <b>Area (m²):</b> {AREA}<br>
+            <b>Decrease (%):</b> {VC_decrease}%<br>
+            <b>Increase (%):</b> {VC_increase}%<br>
+            <b>N tree:</b> {Tree_count}
+            `
+        }
+      });
+
+      vcGeojsonLayer = new GeoJSONLayer({
+        url: "http://localhost:8080/geojson/dummy_binary.geojson",
+        title: "Vegetation Cover",
+        renderer: {
+          type: "unique-value",
+          field: "ndvi02",
+          uniqueValueInfos: [
+            {
+              value: 0,
+              symbol: {
+                type: "simple-fill",
+                color: [255, 0, 0, 0.4],
+                outline: null //{ color: [255, 0, 0, 0.1], width: 1 }
+              },
+              label: "Decrease"
+            },
+            {
+              value: 1,
+              symbol: {
+                type: "simple-fill",
+                color: [0, 255, 0, 0.4],
+                outline: null //{ color: [0, 255, 0, 0.1], width: 1 }
+              },
+              label: "Increase"
+            }
+          ]
+        }
+      });
+
+      treeGeojsonLayer = new GeoJSONLayer({
+        url: "http://localhost:8080/geojson/dummy_trees.geojson",
+        title: "Trees",
+        renderer: new SimpleRenderer({
+          symbol: new SimpleMarkerSymbol({
+            style: "circle", // "square", "cross"
+            color: [80, 80, 80, 0.9], // Dark grey color (RGBA)
+            size: 2, // Adjust the size of the points as needed
+            outline: null // Remove the outline
+          })
+        })
+      });
+
+      const minValueLST = 30;
+      const maxValueLST = 71;
+      const numClasses = 5;
+      const classBreaks = [];
+      //const colorStops = ["#ffffcc", "#ffeda0", "#fed976", "#feb24c", "#f03b20"]; // Example color ramp
+      const colorStops = [
+        "rgba(255, 255, 204, 0.9)",
+        "rgba(255, 237, 160, 0.9)",
+        "rgba(254, 217, 118, 0.9)",
+        "rgba(254, 178, 76, 0.9)",
+        "rgba(240, 59, 32, 0.9)"
+      ];
+
+      for (let i = 0; i < numClasses; i++) {
+        const lowerBound = minValueLST + (i * (maxValueLST - minValueLST) / numClasses);
+        const upperBound = minValueLST + ((i + 1) * (maxValueLST - minValueLST) / numClasses);
+        classBreaks.push({
+          minValue: lowerBound,
+          maxValue: upperBound,
+          symbol: new SimpleFillSymbol({
+            color: colorStops[i],
+            outline: null
+          }),
+          label: `${lowerBound.toFixed(1)} - ${upperBound.toFixed(1)}`
+        });
+      }
+
+      lstGeojsonLayer = new GeoJSONLayer({
+        url: "http://localhost:8080/geojson/dummy_LSTn.geojson",
+        title: null,
+        renderer: {
+          type: "class-breaks",
+          field: "Land Surface Temperature (°C)", // Assuming your LST values are in a field named "LST"
+          classBreakInfos: classBreaks
+        }
+      });
+
+      map.add(lstGeojsonLayer); // Add the LST layer to the map
+      map.add(geojsonLayer);
+      map.add(grpGeojsonLayer);
+      map.add(treeGeojsonLayer);
+      map.add(vcGeojsonLayer);
+      
+
+      // We no longer need to set min/max values for a continuous legend
+      // document.getElementById("minValue").textContent = minValueLST.toFixed(1);
+      // document.getElementById("maxValue").textContent = maxValueLST.toFixed(1);
+      // const gradient = `linear-gradient(to right, ${colorStops.join(', ')})`;
+      // document.getElementById("lstGradient").style.background = gradient;
+
+
+      const lstservices = document.getElementById("lstservices");
+
+      const whiteOption = document.createElement("option");
+      whiteOption.textContent = "White Background";
+      whiteOption.value = "WHITE";
+      lstservices.appendChild(whiteOption);
+
+      esriRequest(serviceURL, { responseType: "json" }).then(response => {
+        const services = response.data.services;
+        selectedIndexes.forEach(i => {
+          if (i < services.length) {
+            const option = document.createElement("option");
+            option.textContent = services[i].name;
+            option.value = services[i].name;
+            lstservices.appendChild(option);
+          }
+        });
+        if (lstservices.options.length > 0) {
+          loadServiceLayer(lstservices.options[0].value);
+        }
+      });
+
+      lstservices.addEventListener("change", function() {
+        loadServiceLayer(this.value);
+      });
+
+      function loadServiceLayer(serviceName) {
+        map.removeAll();
+        if (serviceName === "WHITE") {
+          map.basemap = null;
+          mapview.background = { color: "white" };
+        } else {
+          map.basemap = null;
+          const layerUrl = `https://server.arcgisonline.com/arcgis/rest/services/${serviceName}/MapServer`;
+          const imageryLayer = new MapImageLayer({ url: layerUrl });
+          map.add(imageryLayer);
+        }
+
+        // Add overlay layers back
+        map.add(lstGeojsonLayer); // Ensure LST layer is added back
+        map.add(geojsonLayer);
+        map.add(grpGeojsonLayer);
+        map.add(treeGeojsonLayer);
+        map.add(vcGeojsonLayer);
+      }
+
+      grpGeojsonLayer.on("click", function(event) {
+        const graphic = event.graphic;
+        const extent = graphic.geometry.extent;
+        if (extent) {
+          mapview.goTo(extent);
+        }
+      });
+
+      document.getElementById("printBtn").addEventListener("click", function() {
+        window.print();
+      });
+
+      document.getElementById("refreshBtn").addEventListener("click", function() {
+        mapview.goTo({
+          center: [46.66302550542527, 24.72617449457473],
+          scale: 580000
+        });
+      });
+
+      const zoomWidget = new Zoom({
+        view: mapview
+      });
+      mapview.ui.add(zoomWidget, "bottom-right");
+
+      const legend = new Legend({
+        view: mapview,
+        container: "legendDiv",
+        layerInfos: [
+          {
+            layer: vcGeojsonLayer,
+            title: "Vegetation Cover"
+          },
+          {
+            layer: treeGeojsonLayer,
+            title: "Trees"
+          },
+          {
+            layer: lstGeojsonLayer,
+            title: null // Modified title
+          }         
+        ]
+      });
+
+      document.getElementById("grpLayerCheckbox").addEventListener("change", function() {
+        grpGeojsonLayer.visible = this.checked;
+      });
+
+      const lstLayerCheckbox = document.getElementById("lstLayerCheckbox");
+      const vcLayerCheckbox = document.getElementById("vcLayerCheckbox");
+      const treeLayerCheckbox = document.getElementById("treeLayerCheckbox");
+
+
+      lstLayerCheckbox.addEventListener("change", function() {
+        lstGeojsonLayer.visible = this.checked;
+      });
+
+      vcLayerCheckbox.addEventListener("change", function() {
+        vcGeojsonLayer.visible = this.checked;
+      });
+
+
+      treeLayerCheckbox.addEventListener("change", function() {
+        treeGeojsonLayer.visible = this.checked;
+      });
+
+    });
+  </script>
+</body>
+</html>
