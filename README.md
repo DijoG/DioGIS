@@ -1,2 +1,2 @@
 # DioGIS
-webAPI built using ArcGIS JavaScript
+simple webGIS API built using ArcGIS JavaScript
