@@ -1,7 +1,7 @@
 ## DioGIS
 Simple webGIS API built using ArcGIS JavaScript.
 
-Thhis is a basic example of how to set up a local developing and testing environment for bulding a webGIS API. 
+This is a basic example of how to set up a local developing and testing environment for bulding a webGIS API. 
 Note that it will NOT work for you, since none of the spatial (geojson) files can be shared.
 
 ## 1) Download and install Node.js from https://nodejs.org/en/download!
