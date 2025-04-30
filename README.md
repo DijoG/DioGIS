@@ -1,7 +1,7 @@
 ## DioGIS
 
 This is an example of how to set up a basic local developing and testing environment for building a high-level webGIS API. 
-Note that it will NOT work for you, since none of the dummy spatial files (geojson) are too large for GitHub.
+Note that it will NOT work for you, since the dummy spatial files (geojson) are too large for GitHub.
 
 ## 1) Download and install Node.js from https://nodejs.org/en/download!
 
