@@ -15,3 +15,26 @@ Note that it will NOT work for you, since none of the spatial (geojson) files ca
 
 ##  The webGIS API appears only if the geojson files exist and their urls are set correctly (change the urls)!
 
+Some screenshots:
+
+<img align="bottom" src="https://raw.githubusercontent.com/DijoG/storage/main/README/01_DioGIS.png">
+
+<img align="bottom" src="https://raw.githubusercontent.com/DijoG/storage/main/README/02_DioGIS.png">
+
+<img align="bottom" src="https://raw.githubusercontent.com/DijoG/storage/main/README/03_DioGIS.png">
+
+<img align="bottom" src="https://raw.githubusercontent.com/DijoG/storage/main/README/04_DioGIS.png">
+
+<img align="bottom" src="https://raw.githubusercontent.com/DijoG/storage/main/README/05_DioGIS.png">
+
+<img align="bottom" src="https://raw.githubusercontent.com/DijoG/storage/main/README/06_DioGIS.png">
+
+<img align="bottom" src="https://raw.githubusercontent.com/DijoG/storage/main/README/07_DioGIS.png">
+
+<img align="bottom" src="https://raw.githubusercontent.com/DijoG/storage/main/README/08_DioGIS.png">
+
+<img align="bottom" src="https://raw.githubusercontent.com/DijoG/storage/main/README/09_DioGIS.png">
+
+<img align="bottom" src="https://raw.githubusercontent.com/DijoG/storage/main/README/010_DioGIS.png">
+
+<img align="bottom" src="https://raw.githubusercontent.com/DijoG/storage/main/README/011_DioGIS.png">
