@@ -1,7 +1,9 @@
 # DioGIS
 
 This is an example of how to set up a basic local developing and testing environment for building a high-level webGIS API. 
-Note that it will NOT work for you, since the dummy spatial files (geojson) are too large for GitHub storage.
+Note that the spatial files are not stored/shared. 
+
+To make it work, you need your own spatial files!
 
 ## Basics
   - Download and install *Node.js* from https://nodejs.org/en/download!
@@ -10,8 +12,9 @@ Note that it will NOT work for you, since the dummy spatial files (geojson) are 
   - If you see the following line appear in the terminal: *Server running with CORS at http://localhost:8080*, you have successfully created a local webserver!
   - Go to any browser and run any html files: *http://localhost:8080/dummy_MAIN.html*.
 
-###  Imortant 
-The webGIS API appears only if the geojson files exist and their urls (webservice) are set correctly (change the urls)!
+###  Important 
+  - The webGIS API appears only if the geojson files exist and their urls (for example: "http://localhost:8080/geojson/AOI.geojson") are set correctly (change the urls)!
+  - It can easily be connected to a geoserver using the server's webservices (rendering large spatial files of almost any format).
 
 ### Screenshots
 <img align="bottom" src="https://raw.githubusercontent.com/DijoG/storage/main/README/DioGIS_01.png">
